@@ -1,20 +1,63 @@
-﻿// SoftwareRenderer.cpp : 이 파일에는 'main' 함수가 포함됩니다. 거기서 프로그램 실행이 시작되고 종료됩니다.
-//
+﻿#include <windows.h>
 
-#include <iostream>
+// 프레임버퍼 설정
+const int WIDTH = 800;
+const int HEIGHT = 600;
+COLORREF framebuffer[HEIGHT][WIDTH];
 
-int main()
-{
-    std::cout << "Hello World!\n";
+// 픽셀 하나 찍는 함수
+void setPixel(int x, int y, COLORREF color) {
+    if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)
+        framebuffer[y][x] = color;
 }
 
-// 프로그램 실행: <Ctrl+F5> 또는 [디버그] > [디버깅하지 않고 시작] 메뉴
-// 프로그램 디버그: <F5> 키 또는 [디버그] > [디버깅 시작] 메뉴
+// 윈도우 메시지 처리
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_DESTROY) {
+        PostQuitMessage(0);
+        return 0;
+    }
 
-// 시작을 위한 팁: 
-//   1. [솔루션 탐색기] 창을 사용하여 파일을 추가/관리합니다.
-//   2. [팀 탐색기] 창을 사용하여 소스 제어에 연결합니다.
-//   3. [출력] 창을 사용하여 빌드 출력 및 기타 메시지를 확인합니다.
-//   4. [오류 목록] 창을 사용하여 오류를 봅니다.
-//   5. [프로젝트] > [새 항목 추가]로 이동하여 새 코드 파일을 만들거나, [프로젝트] > [기존 항목 추가]로 이동하여 기존 코드 파일을 프로젝트에 추가합니다.
-//   6. 나중에 이 프로젝트를 다시 열려면 [파일] > [열기] > [프로젝트]로 이동하고 .sln 파일을 선택합니다.
+    if (msg == WM_PAINT) {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+
+        // 프레임버퍼 → 화면에 그리기
+        for (int y = 0; y < HEIGHT; y++)
+            for (int x = 0; x < WIDTH; x++)
+                SetPixel(hdc, x, y, framebuffer[y][x]);
+
+        EndPaint(hwnd, &ps);
+    }
+    return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
+    // 프레임버퍼 초기화 (검정)
+    memset(framebuffer, 0, sizeof(framebuffer));
+
+    // 테스트: 화면 가운데 흰 점 100개 찍기
+    for (int i = 0; i < 100; i++)
+        setPixel(400 + i, 300, RGB(255, 255, 255));
+
+    // 윈도우 생성
+    WNDCLASS wc = {};
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = L"SoftwareRenderer";
+    RegisterClass(&wc);
+
+    HWND hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer",
+        WS_OVERLAPPEDWINDOW, 100, 100, WIDTH, HEIGHT,
+        NULL, NULL, hInstance, NULL);
+
+    ShowWindow(hwnd, nCmdShow);
+
+    // 메시지 루프
+    MSG msg = {};
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return 0;
+}
