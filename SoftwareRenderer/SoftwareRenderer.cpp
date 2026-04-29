@@ -161,6 +161,9 @@ vector<Vec3> objVertices;
 vector<int>  objFaces; // 3개씩 묶어서 삼각형
 
 float angle = 0.0f;
+int   frameCount = 0;
+DWORD lastTime = 0;
+float fps = 0.0f;
 
 // 벡터 연산 헬퍼
 Vec3 subtract(Vec3 a, Vec3 b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
@@ -249,8 +252,31 @@ void render() {
 
     // 빛 방향 (월드 공간, 정규화)
     Vec3 lightDir = normalize({ 1.0f, 1.0f, -1.0f });
+    Vec3 viewDir = { 0.0f, 0.0f, -1.0f };
 
-    renderOBJ(mvp);
+    for (int i = 0; i + 2 < (int)objFaces.size(); i += 3) {
+        ScreenVert sv[3];
+        Vec3 v[3];
+        v[0] = objVertices[objFaces[i]];
+        v[1] = objVertices[objFaces[i + 1]];
+        v[2] = objVertices[objFaces[i + 2]];
+
+        // Back-face Culling
+        Vec3 edge1 = subtract(v[1], v[0]);
+        Vec3 edge2 = subtract(v[2], v[0]);
+        Vec3 normal = normalize(cross(edge1, edge2));
+        if (dot(normal, viewDir) >= 0) continue;
+
+        sv[0] = projectVertex(v[0], mvp);
+        sv[1] = projectVertex(v[1], mvp);
+        sv[2] = projectVertex(v[2], mvp);
+
+        drawTriangle3D(
+            sv[0].sx, sv[0].sy, sv[0].depth,
+            sv[1].sx, sv[1].sy, sv[1].depth,
+            sv[2].sx, sv[2].sy, sv[2].depth,
+            RGB(180, 180, 180));
+    }
 }
 
 // =====================
@@ -293,6 +319,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             DispatchMessage(&msg);
         }
         angle += 0.02f;
+        frameCount++;
+        DWORD now = GetTickCount();
+        if (now - lastTime >= 1000) {
+            fps = frameCount * 1000.0f / (now - lastTime);
+            frameCount = 0;
+            lastTime = now;
+            wchar_t title[64];
+            swprintf_s(title, L"Software Renderer - Day8 | FPS: %.1f", fps);
+            SetWindowText(g_hwnd, title);
+        }
         render();
         InvalidateRect(g_hwnd, NULL, FALSE);
         Sleep(16);
