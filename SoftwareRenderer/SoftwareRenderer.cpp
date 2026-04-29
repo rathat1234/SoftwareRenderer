@@ -9,7 +9,8 @@ using namespace std;
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
-COLORREF framebuffer[HEIGHT][WIDTH];
+HBITMAP   hBitmap = nullptr;
+COLORREF* framebuffer = nullptr;
 float zbuffer[HEIGHT][WIDTH];
 
 // =====================
@@ -88,9 +89,23 @@ Mat4 makeScale(float sx, float sy, float sz) {
 // =====================
 // 렌더링 함수
 // =====================
+void initFramebuffer(HWND hwnd) {
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = WIDTH;
+    bmi.bmiHeader.biHeight = -HEIGHT;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    HDC hdc = GetDC(hwnd);
+    hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS,
+        (void**)&framebuffer, NULL, 0);
+    ReleaseDC(hwnd, hdc);
+}
+
 void setPixel(int x, int y, COLORREF color) {
     if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)
-        framebuffer[y][x] = color;
+        framebuffer[y * WIDTH + x] = color;
 }
 
 struct ScreenVert { float sx, sy, depth; };
@@ -246,7 +261,7 @@ void renderOBJ(const Mat4& mvp) {
 }
 
 void render() {
-    memset(framebuffer, 0, sizeof(framebuffer));
+    memset(framebuffer, 0, WIDTH * HEIGHT * sizeof(COLORREF));
     for (int y = 0; y < HEIGHT; y++)
         for (int x = 0; x < WIDTH; x++)
             zbuffer[y][x] = 1e9f;
@@ -295,9 +310,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     if (msg == WM_PAINT) {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        for (int y = 0; y < HEIGHT; y++)
-            for (int x = 0; x < WIDTH; x++)
-                SetPixel(hdc, x, y, framebuffer[y][x]);
+        HDC memDC = CreateCompatibleDC(hdc);
+        SelectObject(memDC, hBitmap);
+        BitBlt(hdc, 0, 0, WIDTH, HEIGHT, memDC, 0, 0, SRCCOPY);
+        DeleteDC(memDC);
         EndPaint(hwnd, &ps);
     }
     if (msg == WM_LBUTTONDOWN) {
@@ -336,13 +352,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     wc.lpszClassName = L"SoftwareRenderer";
     RegisterClass(&wc);
 
-    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day6",
+    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day10",
         WS_OVERLAPPEDWINDOW, 100, 100, WIDTH, HEIGHT,
         NULL, NULL, hInstance, NULL);
     loadOBJ("airboat.obj");
 
     ShowWindow(g_hwnd, nCmdShow);
 
+    initFramebuffer(g_hwnd);
+    
     MSG msg = {};
     while (true) {
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
