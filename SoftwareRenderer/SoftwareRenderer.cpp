@@ -1,26 +1,22 @@
 ﻿#include <windows.h>
 #include <algorithm>
 #include <cmath>
-#include <vector>
 using namespace std;
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
 COLORREF framebuffer[HEIGHT][WIDTH];
+float zbuffer[HEIGHT][WIDTH];
 
 // =====================
 // 수학 구조체
 // =====================
-struct Vec3 {
-    float x, y, z;
-};
-
-struct Vec4 {
-    float x, y, z, w;
-};
+struct Vec3 { float x, y, z; };
+struct Vec4 { float x, y, z, w; };
 
 struct Mat4 {
-    float m[4][4] = {};
+    float m[4][4];
+    Mat4() { for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) m[i][j] = 0; }
 
     Mat4 operator*(const Mat4& o) const {
         Mat4 r;
@@ -30,61 +26,45 @@ struct Mat4 {
                     r.m[i][j] += m[i][k] * o.m[k][j];
         return r;
     }
-
     Vec4 operator*(const Vec4& v) const {
-        return {
-            m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z + m[0][3] * v.w,
-            m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z + m[1][3] * v.w,
-            m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z + m[2][3] * v.w,
-            m[3][0] * v.x + m[3][1] * v.y + m[3][2] * v.z + m[3][3] * v.w
-        };
+        Vec4 r;
+        r.x = m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z + m[0][3] * v.w;
+        r.y = m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z + m[1][3] * v.w;
+        r.z = m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z + m[2][3] * v.w;
+        r.w = m[3][0] * v.x + m[3][1] * v.y + m[3][2] * v.z + m[3][3] * v.w;
+        return r;
     }
 };
 
-// 단위 행렬
-Mat4 makeIdentity () {
+Mat4 makeIdentity() {
     Mat4 m;
     m.m[0][0] = m.m[1][1] = m.m[2][2] = m.m[3][3] = 1.0f;
     return m;
 }
-
-// Y축 회전 행렬
-Mat4 rotateY(float angle) {
-    Mat4 m = makeIdentity ();
-    m.m[0][0] = cosf(angle);
-    m.m[0][2] = sinf(angle);
-    m.m[2][0] = -sinf(angle);
-    m.m[2][2] = cosf(angle);
+Mat4 rotateY(float a) {
+    Mat4 m = makeIdentity();
+    m.m[0][0] = cosf(a); m.m[0][2] = sinf(a);
+    m.m[2][0] = -sinf(a); m.m[2][2] = cosf(a);
     return m;
 }
-
-// X축 회전 행렬
-Mat4 rotateX(float angle) {
-    Mat4 m = makeIdentity ();
-    m.m[1][1] = cosf(angle);
-    m.m[1][2] = -sinf(angle);
-    m.m[2][1] = sinf(angle);
-    m.m[2][2] = cosf(angle);
+Mat4 rotateX(float a) {
+    Mat4 m = makeIdentity();
+    m.m[1][1] = cosf(a); m.m[1][2] = -sinf(a);
+    m.m[2][1] = sinf(a); m.m[2][2] = cosf(a);
     return m;
 }
-
-// 이동 행렬
-Mat4 translate(float tx, float ty, float tz) {
-    Mat4 m = makeIdentity ();
-    m.m[0][3] = tx;
-    m.m[1][3] = ty;
-    m.m[2][3] = tz;
+Mat4 makeTranslate(float tx, float ty, float tz) {
+    Mat4 m = makeIdentity();
+    m.m[0][3] = tx; m.m[1][3] = ty; m.m[2][3] = tz;
     return m;
 }
-
-// 원근 투영 행렬
-Mat4 perspective(float fov, float aspect, float zNear, float zFar) {
+Mat4 makePerspective(float fov, float aspect, float zNear, float zFar) {
     Mat4 m;
     float f = 1.0f / tanf(fov / 2.0f);
     m.m[0][0] = f / aspect;
     m.m[1][1] = f;
     m.m[2][2] = (zFar + zNear) / (zNear - zFar);
-    m.m[2][3] = (2 * zFar * zNear) / (zNear - zFar);
+    m.m[2][3] = (2.0f * zFar * zNear) / (zNear - zFar);
     m.m[3][2] = -1.0f;
     return m;
 }
@@ -97,68 +77,98 @@ void setPixel(int x, int y, COLORREF color) {
         framebuffer[y][x] = color;
 }
 
-void drawLine(int x0, int y0, int x1, int y1, COLORREF color) {
-    int dx = abs(x1 - x0), dy = abs(y1 - y0);
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
-    int err = dx - dy;
-    while (true) {
-        setPixel(x0, y0, color);
-        if (x0 == x1 && y0 == y1) break;
-        int e2 = 2 * err;
-        if (e2 > -dy) { err -= dy; x0 += sx; }
-        if (e2 < dx) { err += dx; y0 += sy; }
-    }
-}
+struct ScreenVert { float sx, sy, depth; };
 
-// 3D 정점 → 화면 좌표 변환
-bool projectVertex(const Vec3& v, const Mat4& mvp, int& sx, int& sy) {
-    Vec4 clip = mvp * Vec4{ v.x, v.y, v.z, 1.0f };
-    if (clip.w <= 0) return false;
-
-    // NDC 좌표
+ScreenVert projectVertex(const Vec3& v, const Mat4& mvp) {
+    Vec4 in;
+    in.x = v.x; in.y = v.y; in.z = v.z; in.w = 1.0f;
+    Vec4 clip = mvp * in;
+    ScreenVert sv;
+    sv.sx = -1; sv.sy = -1; sv.depth = 1e9f;
+    if (clip.w <= 0) return sv;
     float ndcX = clip.x / clip.w;
     float ndcY = clip.y / clip.w;
+    sv.depth = clip.z / clip.w;
+    sv.sx = (ndcX + 1.0f) * 0.5f * WIDTH;
+    sv.sy = (1.0f - ndcY) * 0.5f * HEIGHT;
+    return sv;
+}
 
-    // 화면 좌표
-    sx = (int)((ndcX + 1.0f) * 0.5f * WIDTH);
-    sy = (int)((1.0f - ndcY) * 0.5f * HEIGHT);
-    return true;
+void drawTriangle3D(
+    float x0, float y0, float z0,
+    float x1, float y1, float z1,
+    float x2, float y2, float z2,
+    COLORREF color)
+{
+    int minX = max(0, (int)min(x0, min(x1, x2)));
+    int maxX = min(WIDTH - 1, (int)max(x0, max(x1, x2)));
+    int minY = max(0, (int)min(y0, min(y1, y2)));
+    int maxY = min(HEIGHT - 1, (int)max(y0, max(y1, y2)));
+
+    for (int y = minY; y <= maxY; y++) {
+        for (int x = minX; x <= maxX; x++) {
+            float denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+            if (fabs(denom) < 1e-6f) continue;
+            float w0 = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2)) / denom;
+            float w1 = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2)) / denom;
+            float w2 = 1.0f - w0 - w1;
+            if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+
+            float depth = w0 * z0 + w1 * z1 + w2 * z2;
+            if (depth < zbuffer[y][x]) {
+                zbuffer[y][x] = depth;
+                setPixel(x, y, color);
+            }
+        }
+    }
 }
 
 // =====================
 // 정육면체 데이터
 // =====================
-Vec3 cubeVertices[8] = {
-    {-1,-1,-1}, { 1,-1,-1}, { 1, 1,-1}, {-1, 1,-1},  // 앞면
-    {-1,-1, 1}, { 1,-1, 1}, { 1, 1, 1}, {-1, 1, 1}   // 뒷면
+Vec3 cubeVerts[8] = {
+    {-1,-1,-1}, { 1,-1,-1}, { 1, 1,-1}, {-1, 1,-1},
+    {-1,-1, 1}, { 1,-1, 1}, { 1, 1, 1}, {-1, 1, 1}
 };
 
-// 엣지 (선으로 그릴 연결)
-int cubeEdges[12][2] = {
-    {0,1},{1,2},{2,3},{3,0},  // 앞면
-    {4,5},{5,6},{6,7},{7,4},  // 뒷면
-    {0,4},{1,5},{2,6},{3,7}   // 연결
+struct Face { int v[4]; COLORREF color; };
+Face cubeFaces[6] = {
+    {{0,1,2,3}, RGB(255, 80,  80)},
+    {{5,4,7,6}, RGB(80,  255, 80)},
+    {{4,0,3,7}, RGB(80,  80,  255)},
+    {{1,5,6,2}, RGB(255, 255, 80)},
+    {{3,2,6,7}, RGB(80,  255, 255)},
+    {{4,5,1,0}, RGB(255, 80,  255)},
 };
 
 float angle = 0.0f;
 
 void render() {
     memset(framebuffer, 0, sizeof(framebuffer));
+    for (int y = 0; y < HEIGHT; y++)
+        for (int x = 0; x < WIDTH; x++)
+            zbuffer[y][x] = 1e9f;
 
-    // MVP 행렬 구성
     Mat4 model = rotateY(angle) * rotateX(angle * 0.5f);
-    Mat4 view = translate(0, 0, -5);
-    Mat4 proj = perspective(3.14159f / 3.0f, (float)WIDTH / HEIGHT, 0.1f, 100.0f);
+    Mat4 view = makeTranslate(0, 0, -5);
+    Mat4 proj = makePerspective(3.14159f / 3.0f, (float)WIDTH / HEIGHT, 0.1f, 100.0f);
     Mat4 mvp = proj * view * model;
 
-    // 정육면체 엣지 그리기
-    for (auto& e : cubeEdges) {
-        int x0, y0, x1, y1;
-        if (projectVertex(cubeVertices[e[0]], mvp, x0, y0) &&
-            projectVertex(cubeVertices[e[1]], mvp, x1, y1)) {
-            drawLine(x0, y0, x1, y1, RGB(0, 255, 128));
-        }
+    for (int f = 0; f < 6; f++) {
+        ScreenVert sv[4];
+        for (int i = 0; i < 4; i++)
+            sv[i] = projectVertex(cubeVerts[cubeFaces[f].v[i]], mvp);
+
+        drawTriangle3D(
+            sv[0].sx, sv[0].sy, sv[0].depth,
+            sv[1].sx, sv[1].sy, sv[1].depth,
+            sv[2].sx, sv[2].sy, sv[2].depth,
+            cubeFaces[f].color);
+        drawTriangle3D(
+            sv[0].sx, sv[0].sy, sv[0].depth,
+            sv[2].sx, sv[2].sy, sv[2].depth,
+            sv[3].sx, sv[3].sy, sv[3].depth,
+            cubeFaces[f].color);
     }
 }
 
@@ -187,7 +197,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     wc.lpszClassName = L"SoftwareRenderer";
     RegisterClass(&wc);
 
-    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day4",
+    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day5",
         WS_OVERLAPPEDWINDOW, 100, 100, WIDTH, HEIGHT,
         NULL, NULL, hInstance, NULL);
     ShowWindow(g_hwnd, nCmdShow);
@@ -199,11 +209,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        // 애니메이션 루프
         angle += 0.02f;
         render();
         InvalidateRect(g_hwnd, NULL, FALSE);
-        Sleep(16); // ~60fps
+        Sleep(16);
     }
     return 0;
 }
