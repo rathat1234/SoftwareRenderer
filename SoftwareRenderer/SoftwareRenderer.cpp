@@ -160,10 +160,16 @@ Face cubeFaces[6] = {
 vector<Vec3> objVertices;
 vector<int>  objFaces; // 3개씩 묶어서 삼각형
 
+float rotX = 0.0f;
+float rotY = 0.0f;
+int   lastMouseX = 0;
+int   lastMouseY = 0;
+bool  mouseDown = false;
 float angle = 0.0f;
 int   frameCount = 0;
 DWORD lastTime = 0;
 float fps = 0.0f;
+float camZ = -5.0f;
 
 // 벡터 연산 헬퍼
 Vec3 subtract(Vec3 a, Vec3 b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
@@ -245,8 +251,8 @@ void render() {
         for (int x = 0; x < WIDTH; x++)
             zbuffer[y][x] = 1e9f;
 
-    Mat4 model = rotateY(angle) * rotateX(angle * 0.5f) * makeScale(0.2, 0.2, 0.2);
-    Mat4 view = makeTranslate(0, 0, -5);
+    Mat4 model = rotateY(rotY) * rotateX(rotX) * makeScale(0.2, 0.2, 0.2);
+    Mat4 view = makeTranslate(0, 0, camZ);
     Mat4 proj = makePerspective(3.14159f / 3.0f, (float)WIDTH / HEIGHT, 0.1f, 100.0f);
     Mat4 mvp = proj * view * model;
 
@@ -294,6 +300,32 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 SetPixel(hdc, x, y, framebuffer[y][x]);
         EndPaint(hwnd, &ps);
     }
+    if (msg == WM_LBUTTONDOWN) {
+        mouseDown = true;
+        lastMouseX = LOWORD(lParam);
+        lastMouseY = HIWORD(lParam);
+        return 0;
+    }
+    if (msg == WM_LBUTTONUP) {
+        mouseDown = false;
+        return 0;
+    }
+    if (msg == WM_MOUSEMOVE) {
+        if (mouseDown) {
+            int mx = LOWORD(lParam);
+            int my = HIWORD(lParam);
+            rotY += (mx - lastMouseX) * 0.01f;
+            rotX += (my - lastMouseY) * 0.01f;
+            lastMouseX = mx;
+            lastMouseY = my;
+        }
+        return 0;
+    }
+    if (msg == WM_MOUSEWHEEL) {
+        int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+        camZ += delta * 0.005f;
+        return 0;
+    }
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
@@ -318,7 +350,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        angle += 0.02f;
         frameCount++;
         DWORD now = GetTickCount();
         if (now - lastTime >= 1000) {
