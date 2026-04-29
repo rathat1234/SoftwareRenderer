@@ -1,6 +1,10 @@
 ﻿#include <windows.h>
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
 using namespace std;
 
 const int WIDTH = 800;
@@ -13,6 +17,8 @@ float zbuffer[HEIGHT][WIDTH];
 // =====================
 struct Vec3 { float x, y, z; };
 struct Vec4 { float x, y, z, w; };
+
+
 
 struct Mat4 {
     float m[4][4];
@@ -68,6 +74,16 @@ Mat4 makePerspective(float fov, float aspect, float zNear, float zFar) {
     m.m[3][2] = -1.0f;
     return m;
 }
+
+Mat4 makeScale(float sx, float sy, float sz) {
+    Mat4 m = makeIdentity();
+    m.m[0][0] = sx;
+    m.m[1][1] = sy;
+    m.m[2][2] = sz;
+    return m;
+}
+
+
 
 // =====================
 // 렌더링 함수
@@ -141,6 +157,9 @@ Face cubeFaces[6] = {
     {{4,5,1,0}, RGB(255, 80,  255)},
 };
 
+vector<Vec3> objVertices;
+vector<int>  objFaces; // 3개씩 묶어서 삼각형
+
 float angle = 0.0f;
 
 // 벡터 연산 헬퍼
@@ -167,13 +186,63 @@ COLORREF applyLight(COLORREF baseColor, float intensity) {
     return RGB(r, g, b);
 }
 
+bool loadOBJ(const char* path) {
+    ifstream file(path);
+    if (!file.is_open()) return false;
+
+    objVertices.clear();
+    objFaces.clear();
+
+    string line;
+    while (getline(file, line)) {
+        istringstream ss(line);
+        string token;
+        ss >> token;
+
+        if (token == "v") {
+            Vec3 v;
+            ss >> v.x >> v.y >> v.z;
+            objVertices.push_back(v);
+        }
+        else if (token == "f") {
+            vector<int> indices;
+            string part;
+            while (ss >> part) {
+                int idx = stoi(part.substr(0, part.find('/')));
+                indices.push_back(idx - 1);
+            }
+            for (int i = 1; i + 1 < (int)indices.size(); i++) {
+                objFaces.push_back(indices[0]);
+                objFaces.push_back(indices[i]);
+                objFaces.push_back(indices[i + 1]);
+            }
+        }
+    }
+    return true;
+}
+
+void renderOBJ(const Mat4& mvp) {
+    for (int i = 0; i + 2 < (int)objFaces.size(); i += 3) {
+        ScreenVert sv[3];
+        sv[0] = projectVertex(objVertices[objFaces[i]], mvp);
+        sv[1] = projectVertex(objVertices[objFaces[i + 1]], mvp);
+        sv[2] = projectVertex(objVertices[objFaces[i + 2]], mvp);
+
+        drawTriangle3D(
+            sv[0].sx, sv[0].sy, sv[0].depth,
+            sv[1].sx, sv[1].sy, sv[1].depth,
+            sv[2].sx, sv[2].sy, sv[2].depth,
+            RGB(180, 180, 180));
+    }
+}
+
 void render() {
     memset(framebuffer, 0, sizeof(framebuffer));
     for (int y = 0; y < HEIGHT; y++)
         for (int x = 0; x < WIDTH; x++)
             zbuffer[y][x] = 1e9f;
 
-    Mat4 model = rotateY(angle) * rotateX(angle * 0.5f);
+    Mat4 model = rotateY(angle) * rotateX(angle * 0.5f) * makeScale(0.2, 0.2, 0.2);
     Mat4 view = makeTranslate(0, 0, -5);
     Mat4 proj = makePerspective(3.14159f / 3.0f, (float)WIDTH / HEIGHT, 0.1f, 100.0f);
     Mat4 mvp = proj * view * model;
@@ -181,41 +250,7 @@ void render() {
     // 빛 방향 (월드 공간, 정규화)
     Vec3 lightDir = normalize({ 1.0f, 1.0f, -1.0f });
 
-    for (int f = 0; f < 6; f++) {
-        // 월드 공간에서 법선 계산 (조명용)
-        Vec3 worldVerts[4];
-        for (int i = 0; i < 4; i++) {
-            Vec3 v = cubeVerts[cubeFaces[f].v[i]];
-            Vec4 in; in.x = v.x; in.y = v.y; in.z = v.z; in.w = 1.0f;
-            Vec4 w = view * model * in;
-            worldVerts[i] = { w.x, w.y, w.z };
-        }
-
-        // 면 법선 = 두 엣지의 외적
-        Vec3 edge1 = subtract(worldVerts[1], worldVerts[0]);
-        Vec3 edge2 = subtract(worldVerts[2], worldVerts[0]);
-        Vec3 normal = normalize(cross(edge1, edge2));
-
-        // Lambert 조명
-        float intensity = dot(normal, lightDir);
-        COLORREF litColor = applyLight(cubeFaces[f].color, intensity);
-
-        // 스크린 변환
-        ScreenVert sv[4];
-        for (int i = 0; i < 4; i++)
-            sv[i] = projectVertex(cubeVerts[cubeFaces[f].v[i]], mvp);
-
-        drawTriangle3D(
-            sv[0].sx, sv[0].sy, sv[0].depth,
-            sv[1].sx, sv[1].sy, sv[1].depth,
-            sv[2].sx, sv[2].sy, sv[2].depth,
-            litColor);
-        drawTriangle3D(
-            sv[0].sx, sv[0].sy, sv[0].depth,
-            sv[2].sx, sv[2].sy, sv[2].depth,
-            sv[3].sx, sv[3].sy, sv[3].depth,
-            litColor);
-    }
+    renderOBJ(mvp);
 }
 
 // =====================
@@ -246,6 +281,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day6",
         WS_OVERLAPPEDWINDOW, 100, 100, WIDTH, HEIGHT,
         NULL, NULL, hInstance, NULL);
+    loadOBJ("airboat.obj");
+
     ShowWindow(g_hwnd, nCmdShow);
 
     MSG msg = {};
