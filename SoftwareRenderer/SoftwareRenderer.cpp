@@ -143,6 +143,30 @@ Face cubeFaces[6] = {
 
 float angle = 0.0f;
 
+// 벡터 연산 헬퍼
+Vec3 subtract(Vec3 a, Vec3 b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
+Vec3 cross(Vec3 a, Vec3 b) {
+    return {
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    };
+}
+float dot(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+Vec3 normalize(Vec3 v) {
+    float len = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+    if (len < 1e-6f) return { 0,0,0 };
+    return { v.x / len, v.y / len, v.z / len };
+}
+
+COLORREF applyLight(COLORREF baseColor, float intensity) {
+    intensity = max(0.1f, min(1.0f, intensity)); // ambient 0.1 보장
+    int r = (int)(GetRValue(baseColor) * intensity);
+    int g = (int)(GetGValue(baseColor) * intensity);
+    int b = (int)(GetBValue(baseColor) * intensity);
+    return RGB(r, g, b);
+}
+
 void render() {
     memset(framebuffer, 0, sizeof(framebuffer));
     for (int y = 0; y < HEIGHT; y++)
@@ -154,7 +178,29 @@ void render() {
     Mat4 proj = makePerspective(3.14159f / 3.0f, (float)WIDTH / HEIGHT, 0.1f, 100.0f);
     Mat4 mvp = proj * view * model;
 
+    // 빛 방향 (월드 공간, 정규화)
+    Vec3 lightDir = normalize({ 1.0f, 1.0f, -1.0f });
+
     for (int f = 0; f < 6; f++) {
+        // 월드 공간에서 법선 계산 (조명용)
+        Vec3 worldVerts[4];
+        for (int i = 0; i < 4; i++) {
+            Vec3 v = cubeVerts[cubeFaces[f].v[i]];
+            Vec4 in; in.x = v.x; in.y = v.y; in.z = v.z; in.w = 1.0f;
+            Vec4 w = view * model * in;
+            worldVerts[i] = { w.x, w.y, w.z };
+        }
+
+        // 면 법선 = 두 엣지의 외적
+        Vec3 edge1 = subtract(worldVerts[1], worldVerts[0]);
+        Vec3 edge2 = subtract(worldVerts[2], worldVerts[0]);
+        Vec3 normal = normalize(cross(edge1, edge2));
+
+        // Lambert 조명
+        float intensity = dot(normal, lightDir);
+        COLORREF litColor = applyLight(cubeFaces[f].color, intensity);
+
+        // 스크린 변환
         ScreenVert sv[4];
         for (int i = 0; i < 4; i++)
             sv[i] = projectVertex(cubeVerts[cubeFaces[f].v[i]], mvp);
@@ -163,12 +209,12 @@ void render() {
             sv[0].sx, sv[0].sy, sv[0].depth,
             sv[1].sx, sv[1].sy, sv[1].depth,
             sv[2].sx, sv[2].sy, sv[2].depth,
-            cubeFaces[f].color);
+            litColor);
         drawTriangle3D(
             sv[0].sx, sv[0].sy, sv[0].depth,
             sv[2].sx, sv[2].sy, sv[2].depth,
             sv[3].sx, sv[3].sy, sv[3].depth,
-            cubeFaces[f].color);
+            litColor);
     }
 }
 
@@ -197,7 +243,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     wc.lpszClassName = L"SoftwareRenderer";
     RegisterClass(&wc);
 
-    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day5",
+    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day6",
         WS_OVERLAPPEDWINDOW, 100, 100, WIDTH, HEIGHT,
         NULL, NULL, hInstance, NULL);
     ShowWindow(g_hwnd, nCmdShow);
