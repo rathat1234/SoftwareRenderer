@@ -1,5 +1,6 @@
 #pragma once
 #include <windows.h>
+#include <algorithm>
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
@@ -26,9 +27,7 @@ public:
 
     void clear() {
         memset(pixels, 0, WIDTH * HEIGHT * sizeof(COLORREF));
-        for (int y = 0; y < HEIGHT; y++)
-            for (int x = 0; x < WIDTH; x++)
-                depth[y][x] = 1e9f;
+        std::fill(&depth[0][0], &depth[0][0] + WIDTH * HEIGHT, 1e9f);
     }
 
     void setPixel(int x, int y, COLORREF color) {

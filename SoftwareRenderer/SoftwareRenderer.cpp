@@ -6,6 +6,8 @@
 #include "Scene/Camera.h"
 #include "Scene/Light.h"
 #include "Scene/Mesh.h"
+#include <immintrin.h>  // AVX2
+#include <emmintrin.h>  // SSE2
 
 Framebuffer fb;
 Camera      camera;
@@ -74,6 +76,14 @@ COLORREF sampleTexture(const Texture& tex, float u, float v) {
 void render() {
     fb.clear();
 
+    static bool printed = false;
+    if (!printed) {
+        char buf[64];
+        sprintf_s(buf, "triangles: %d\n", (int)mesh.indices.size() / 3);
+        OutputDebugStringA(buf);
+        printed = true;
+    }
+
     Mat4 model = rotateY(camera.rotY) * rotateX(camera.rotX);
     Mat4 view = camera.getViewMatrix();
     Mat4 proj = camera.getProjectionMatrix(3.14159f / 3.0f, (float)WIDTH / HEIGHT);
@@ -110,6 +120,11 @@ void render() {
         sv[0] = projectVertex(v[0], mvp);
         sv[1] = projectVertex(v[1], mvp);
         sv[2] = projectVertex(v[2], mvp);
+
+        if (sv[0].sx < 0 && sv[1].sx < 0 && sv[2].sx < 0) continue;
+        if (sv[0].sx > WIDTH && sv[1].sx > WIDTH && sv[2].sx > WIDTH) continue;
+        if (sv[0].sy < 0 && sv[1].sy < 0 && sv[2].sy < 0) continue;
+        if (sv[0].sy > HEIGHT && sv[1].sy > HEIGHT && sv[2].sy > HEIGHT) continue;
 
         drawTriangleGouraud(fb,
             sv[0].sx, sv[0].sy, sv[0].depth, c0,
@@ -170,7 +185,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     mesh.loadOBJ("airboat.obj");
     texture = loadBMP("texture.bmp");
     ShowWindow(g_hwnd, nCmdShow);
-
     MSG msg = {};
     lastTime = GetTickCount();
     while (true) {
