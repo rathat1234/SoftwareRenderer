@@ -3,5 +3,6 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Folder Name="/솔루션 항목/" />
   <Project Path="SoftwareRenderer/SoftwareRenderer.vcxproj" Id="4cd5d816-4f32-4b7e-b7c4-951742ab0558" />
 </Solution>
