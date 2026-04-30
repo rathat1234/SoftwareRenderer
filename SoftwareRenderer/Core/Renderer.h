@@ -52,7 +52,8 @@ inline void drawTriangle(Framebuffer& fb,
 inline void drawTriangleGouraud(Framebuffer& fb,
     float x0, float y0, float z0, COLORREF c0,
     float x1, float y1, float z1, COLORREF c1,
-    float x2, float y2, float z2, COLORREF c2)
+    float x2, float y2, float z2, COLORREF c2,
+    int startY, int endY)
 {
     int minX = max(0, (int)min(x0, min(x1, x2)));
     int maxX = min(WIDTH - 1, (int)max(x0, max(x1, x2)));
@@ -79,7 +80,9 @@ inline void drawTriangleGouraud(Framebuffer& fb,
     __m128 vX2f = _mm_set1_ps(x2);
     __m128 vY2f = _mm_set1_ps(y2);
 
-    for (int y = minY; y <= maxY; y++) {
+    int minYc = max(minY, startY);
+    int maxYc = min(maxY, endY - 1);
+    for (int y = minYc; y <= maxYc; y++) {
         __m128 vY = _mm_set1_ps((float)y);
 
         int x = minX;
