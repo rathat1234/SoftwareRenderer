@@ -2,7 +2,7 @@
 
 > C++ / Windows API로 구현한 소프트웨어 래스터라이저
 
-![demo](assets/SoftwareRenderer.gif)
+![demo](assets/Software Renderer.gif)
 
 ## 개요
 
