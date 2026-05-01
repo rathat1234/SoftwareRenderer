@@ -75,7 +75,7 @@ COLORREF sampleTexture(const Texture& tex, float u, float v) {
     return tex.pixels[y * tex.width + x];
 }
 
-void renderChunk(int startY, int endY, const Mat4& mvp) {
+void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
     Vec3 viewDir = { 0.0f, 0.0f, -1.0f };
 
     for (int i = 0; i + 2 < (int)mesh.indices.size(); i += 3) {
@@ -110,10 +110,19 @@ void renderChunk(int startY, int endY, const Mat4& mvp) {
         COLORREF c1 = sampleTexture(texture, u1, vo1);
         COLORREF c2 = sampleTexture(texture, u2, vo2);
 
+        // 광원 공간 버텍스 계산
+        ScreenVert lv[3];
+        lv[0] = projectVertex(v[0], lightMVP);
+        lv[1] = projectVertex(v[1], lightMVP);
+        lv[2] = projectVertex(v[2], lightMVP);
+
         drawTriangleGouraud(fb,
             sv[0].sx, sv[0].sy, sv[0].depth, c0,
             sv[1].sx, sv[1].sy, sv[1].depth, c1,
             sv[2].sx, sv[2].sy, sv[2].depth, c2,
+            lv[0].sx, lv[0].sy, lv[0].depth,
+            lv[1].sx, lv[1].sy, lv[1].depth,
+            lv[2].sx, lv[2].sy, lv[2].depth,
             startY, endY);
     }
 }
@@ -126,14 +135,43 @@ void render() {
         Mat4 proj = camera.getProjectionMatrix(3.14159f / 3.0f, (float)WIDTH / HEIGHT);
         Mat4 mvp = proj * view * model;
 
-        const int NUM_THREADS = 1;
-        int chunkH = HEIGHT / NUM_THREADS;
+        // 광원 위치 (Light direction 반대 방향)
+        Vec3 lightPos = { -light.direction.x * 5.0f,
+                          -light.direction.y * 5.0f,
+                          -light.direction.z * 5.0f };
 
+        // 광원 시점 View 행렬
+        Mat4 lightView = lookAt(lightPos, { 0,0,0 }, { 0,1,0 });
+        Mat4 lightProj = camera.getProjectionMatrix(3.14159f / 3.0f, (float)WIDTH / HEIGHT);
+        Mat4 lightMVP = lightProj * lightView * model;
+
+        // 1패스: Shadow Map 생성
+        fb.clearShadowMap();
+        for (int i = 0; i + 2 < (int)mesh.indices.size(); i += 3) {
+            Vec3 v[3];
+            v[0] = mesh.vertices[mesh.indices[i]];
+            v[1] = mesh.vertices[mesh.indices[i + 1]];
+            v[2] = mesh.vertices[mesh.indices[i + 2]];
+
+            ScreenVert sv[3];
+            sv[0] = projectVertex(v[0], lightMVP);
+            sv[1] = projectVertex(v[1], lightMVP);
+            sv[2] = projectVertex(v[2], lightMVP);
+
+            drawTriangleShadow(fb,
+                sv[0].sx, sv[0].sy, sv[0].depth,
+                sv[1].sx, sv[1].sy, sv[1].depth,
+                sv[2].sx, sv[2].sy, sv[2].depth);
+        }
+
+        // 2패스: 기존 렌더링 (멀티스레드)
+        const int NUM_THREADS = 8;
+        int chunkH = HEIGHT / NUM_THREADS;
         std::vector<std::thread> threads;
         for (int t = 0; t < NUM_THREADS; t++) {
             int startY = t * chunkH;
             int endY = (t == NUM_THREADS - 1) ? HEIGHT : startY + chunkH;
-            threads.emplace_back(renderChunk, startY, endY, std::cref(mvp));
+            threads.emplace_back(renderChunk, startY, endY, std::cref(mvp), std::cref(lightMVP));
         }
         for (auto& th : threads) th.join();
 
@@ -217,7 +255,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             frameCount = 0;
             lastTime = now;
             wchar_t title[64];
-            swprintf_s(title, L"Software Renderer - Day15 | FPS: %.1f", fps);
+            swprintf_s(title, L"Software Renderer - Day16 | FPS: %.1f", fps);
             SetWindowText(g_hwnd, title);
         }
     }

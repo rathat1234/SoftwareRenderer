@@ -63,3 +63,15 @@ inline Mat4 makePerspective(float fov, float aspect, float zNear, float zFar) {
     m.m[3][2] = -1.0f;
     return m;
 }
+inline Mat4 lookAt(Vec3 eye, Vec3 center, Vec3 up) {
+    Vec3 f = normalize(subtract(center, eye));
+    Vec3 r = normalize(cross(f, up));
+    Vec3 u = cross(r, f);
+
+    Mat4 m = {};
+    m.m[0][0] = r.x;  m.m[0][1] = r.y;  m.m[0][2] = r.z;  m.m[0][3] = -dot(r, eye);
+    m.m[1][0] = u.x;  m.m[1][1] = u.y;  m.m[1][2] = u.z;  m.m[1][3] = -dot(u, eye);
+    m.m[2][0] = -f.x; m.m[2][1] = -f.y; m.m[2][2] = -f.z; m.m[2][3] = dot(f, eye);
+    m.m[3][3] = 1.0f;
+    return m;
+}

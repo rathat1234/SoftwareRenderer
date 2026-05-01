@@ -4,12 +4,14 @@
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
+// 섀도우 맵 전용 깊이 버퍼
 
 class Framebuffer {
 public:
     HBITMAP   hBitmap = nullptr;
     COLORREF* pixels = nullptr;
     float     depth[HEIGHT][WIDTH];
+    float shadowMap[HEIGHT][WIDTH];
 
     void init(HWND hwnd) {
         BITMAPINFO bmi = {};
@@ -33,6 +35,10 @@ public:
     void setPixel(int x, int y, COLORREF color) {
         if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)
             pixels[y * WIDTH + x] = color;
+    }
+
+    void clearShadowMap() {
+        std::fill(&shadowMap[0][0], &shadowMap[0][0] + WIDTH * HEIGHT, 1e9f);
     }
 
     void present(HDC hdc) {
