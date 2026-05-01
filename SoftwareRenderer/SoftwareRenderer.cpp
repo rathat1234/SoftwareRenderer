@@ -6,6 +6,7 @@
 #include "Scene/Camera.h"
 #include "Scene/Light.h"
 #include "Scene/Mesh.h"
+#include "Scene/ECS.h"
 #include <immintrin.h>  // AVX2
 #include <emmintrin.h>  // SSE2
 #include <thread>
@@ -16,6 +17,9 @@ Camera      camera;
 Light       light;
 Mesh        mesh;
 HWND        g_hwnd;
+ECSWorld world;
+EntityID mainEntity;
+EntityID lightEntity;
 
 // 마우스 상태
 int  lastMouseX = 0;
@@ -175,15 +179,29 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
 void render() {
         fb.clear();
 
+        TransformComponent* transform = world.getTransform(mainEntity);
         Mat4 model = rotateY(camera.rotY) * rotateX(camera.rotX);
+        if (transform) {
+            // Transform 컴포넌트에서 추가 회전/위치 반영 가능
+            model = rotateY(camera.rotY + transform->rotation.y)
+                * rotateX(camera.rotX + transform->rotation.x);
+        }
+
         Mat4 view = camera.getViewMatrix();
         Mat4 proj = camera.getProjectionMatrix(3.14159f / 3.0f, (float)WIDTH / HEIGHT);
         Mat4 mvp = proj * view * model;
 
-        // 광원 위치 (Light direction 반대 방향)
-        Vec3 lightPos = { -light.direction.x * 5.0f,
-                          -light.direction.y * 5.0f,
-                          -light.direction.z * 5.0f };
+        // ECS에서 조명 방향 읽기
+        Vec3 lightDirECS = light.direction;
+        for (auto& [id, lc] : world.lights) {
+            lightDirECS = lc.direction;
+            break;
+        }
+
+        // 광원 위치
+        Vec3 lightPos = { -lightDirECS.x * 5.0f,
+                          -lightDirECS.y * 5.0f,
+                          -lightDirECS.z * 5.0f };
 
         // 광원 시점 View 행렬
         Mat4 lightView = lookAt(lightPos, { 0,0,0 }, { 0,1,0 });
@@ -273,6 +291,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     fb.init(g_hwnd);
 
     mesh.loadOBJ("airboat.obj");
+    // ECS 엔티티 생성
+    mainEntity = world.createEntity();
+    world.addTransform(mainEntity, { {0,0,0}, {0,0,0}, {1,1,1} });
+    world.addMesh(mainEntity, { 0 });
+    lightEntity = world.createEntity();
+    world.addLight(lightEntity, { {0,-1,-1}, 1.0f });
     normalMap = loadBMP("normal_map.bmp");
     texture = loadBMP("texture.bmp");
 
