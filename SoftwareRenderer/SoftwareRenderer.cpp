@@ -33,6 +33,7 @@ Texture texture;
 int   frameCount = 0;
 DWORD lastTime = 0;
 float fps = 0.0f;
+Texture normalMap;
 
 Texture loadBMP(const char* path) {
     Texture tex;
@@ -75,6 +76,20 @@ COLORREF sampleTexture(const Texture& tex, float u, float v) {
     return tex.pixels[y * tex.width + x];
 }
 
+Vec3 sampleNormalMap(const Texture& tex, float u, float v) {
+    if (tex.width == 0) return { 0.0f, 0.0f, 1.0f };  // 기본 법선
+    u = u - floorf(u);
+    v = v - floorf(v);
+    int x = (int)(u * (tex.width - 1));
+    int y = (int)(v * (tex.height - 1));
+    COLORREF c = tex.pixels[y * tex.width + x];
+    // RGB [0~255] → 법선 [-1~1]
+    float nx = (GetRValue(c) / 255.0f) * 2.0f - 1.0f;
+    float ny = (GetGValue(c) / 255.0f) * 2.0f - 1.0f;
+    float nz = (GetBValue(c) / 255.0f) * 2.0f - 1.0f;
+    return normalize({ nx, ny, nz });
+}
+
 void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
     Vec3 viewDir = { 0.0f, 0.0f, -1.0f };
 
@@ -110,6 +125,36 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
         COLORREF c1 = sampleTexture(texture, u1, vo1);
         COLORREF c2 = sampleTexture(texture, u2, vo2);
 
+        // Normal Map에서 법선 샘플링
+        Vec3 n0 = sampleNormalMap(normalMap, u0, vo0);
+        Vec3 n1 = sampleNormalMap(normalMap, u1, vo1);
+        Vec3 n2 = sampleNormalMap(normalMap, u2, vo2);
+
+        // 조명 방향
+        Vec3 lightDir = normalize({ -light.direction.x, -light.direction.y, -light.direction.z });
+
+        // 버텍스별 조명 강도
+        float i0 = max(0.0f, dot(n0, lightDir));
+        float i1 = max(0.0f, dot(n1, lightDir));
+        float i2 = max(0.0f, dot(n2, lightDir));
+
+        // ambient + diffuse
+        float a = 0.3f;  // ambient
+        i0 = a + (1.0f - a) * i0;
+        i1 = a + (1.0f - a) * i1;
+        i2 = a + (1.0f - a) * i2;
+
+        // 조명 적용한 색상
+        auto applyLight = [](COLORREF c, float intensity) -> COLORREF {
+            int r = (int)(GetRValue(c) * intensity);
+            int g = (int)(GetGValue(c) * intensity);
+            int b = (int)(GetBValue(c) * intensity);
+            return RGB(min(r, 255), min(g, 255), min(b, 255));
+            };
+
+        c0 = applyLight(c0, i0);
+        c1 = applyLight(c1, i1);
+        c2 = applyLight(c2, i2);
         // 광원 공간 버텍스 계산
         ScreenVert lv[3];
         lv[0] = projectVertex(v[0], lightMVP);
@@ -221,15 +266,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     wc.lpszClassName = L"SoftwareRenderer";
     RegisterClass(&wc);
 
-    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day13",
+    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day117",
         WS_OVERLAPPEDWINDOW, 100, 100, WIDTH, HEIGHT,
         NULL, NULL, hInstance, NULL);
 
     fb.init(g_hwnd);
 
     mesh.loadOBJ("airboat.obj");
-
+    normalMap = loadBMP("normal_map.bmp");
     texture = loadBMP("texture.bmp");
+
     ShowWindow(g_hwnd, nCmdShow);
     MSG msg = {};
     lastTime = GetTickCount();
@@ -255,7 +301,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             frameCount = 0;
             lastTime = now;
             wchar_t title[64];
-            swprintf_s(title, L"Software Renderer - Day16 | FPS: %.1f", fps);
+            swprintf_s(title, L"Software Renderer - Day17 | FPS: %.1f", fps);
             SetWindowText(g_hwnd, title);
         }
     }
