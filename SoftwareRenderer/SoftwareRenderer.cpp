@@ -6,7 +6,7 @@
 #include "Scene/Camera.h"
 #include "Scene/Light.h"
 #include "Scene/Mesh.h"
-#include "Scene/ECS.h"
+#include "Scene/ECS.h"  // ECS
 #include <immintrin.h>  // AVX2
 #include <emmintrin.h>  // SSE2
 #include <thread>
