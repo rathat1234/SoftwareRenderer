@@ -94,6 +94,96 @@ Vec3 sampleNormalMap(const Texture& tex, float u, float v) {
     return normalize({ nx, ny, nz });
 }
 
+// GGX Normal Distribution Function
+float DistributionGGX(float NdotH, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float denom = (NdotH * NdotH) * (a2 - 1.0f) + 1.0f;
+    return a2 / (3.14159f * denom * denom);
+}
+
+// Schlick Fresnel 근사
+Vec3 FresnelSchlick(float cosTheta, Vec3 F0) {
+    float f = powf(1.0f - cosTheta, 5.0f);
+    return {
+        F0.x + (1.0f - F0.x) * f,
+        F0.y + (1.0f - F0.y) * f,
+        F0.z + (1.0f - F0.z) * f
+    };
+}
+
+// Smith Geometry Function
+float GeometrySmith(float NdotV, float NdotL, float roughness) {
+    float r = roughness + 1.0f;
+    float k = (r * r) / 8.0f;
+    float ggx1 = NdotV / (NdotV * (1.0f - k) + k);
+    float ggx2 = NdotL / (NdotL * (1.0f - k) + k);
+    return ggx1 * ggx2;
+}
+
+// PBR 색상 계산
+COLORREF calcPBR(Vec3 albedo, Vec3 N, Vec3 L, Vec3 V, float metallic, float roughness) {
+    Vec3 H = normalize({ L.x + V.x, L.y + V.y, L.z + V.z });
+
+    float NdotL = max(0.2f, dot(N, L));
+    float NdotV = max(0.0f, dot(N, V));
+    float NdotH = max(0.0f, dot(N, H));
+    float HdotV = max(0.0f, dot(H, V));
+
+    // F0: 비금속은 0.04, 금속은 albedo
+    Vec3 F0 = { 0.04f, 0.04f, 0.04f };
+    F0 = {
+        F0.x + (albedo.x - F0.x) * metallic,
+        F0.y + (albedo.y - F0.y) * metallic,
+        F0.z + (albedo.z - F0.z) * metallic
+    };
+
+    float D = DistributionGGX(NdotH, roughness);
+    Vec3  F = FresnelSchlick(HdotV, F0);
+    float G = GeometrySmith(NdotV, NdotL, roughness);
+
+    // Specular
+    float denom = 4.0f * NdotV * NdotL + 0.001f;
+    Vec3 specular = {
+        D * F.x * G / denom,
+        D * F.y * G / denom,
+        D * F.z * G / denom
+    };
+
+    // Diffuse (kd = 1 - F, 금속은 diffuse 없음)
+    Vec3 kd = {
+        (1.0f - F.x) * (1.0f - metallic),
+        (1.0f - F.y) * (1.0f - metallic),
+        (1.0f - F.z) * (1.0f - metallic)
+    };
+
+    Vec3 diffuse = {
+        kd.x * albedo.x / 3.14159f,
+        kd.y * albedo.y / 3.14159f,
+        kd.z * albedo.z / 3.14159f
+    };
+
+    // ambient
+    Vec3 ambient = { albedo.x * 0.3f, albedo.y * 0.3f, albedo.z * 0.3f };
+
+    float lightIntensity = 5.0f;
+    Vec3 Lo = {
+        (diffuse.x + specular.x) * NdotL * lightIntensity + ambient.x,
+        (diffuse.y + specular.y) * NdotL * lightIntensity + ambient.y,
+        (diffuse.z + specular.z) * NdotL * lightIntensity + ambient.z
+    };
+
+    // Tone mapping (HDR → LDR)
+    Lo.x = Lo.x / (Lo.x + 1.0f);
+    Lo.y = Lo.y / (Lo.y + 1.0f);
+    Lo.z = Lo.z / (Lo.z + 1.0f);
+
+    int r = (int)(min(Lo.x, 1.0f) * 255);
+    int g = (int)(min(Lo.y, 1.0f) * 255);
+    int b = (int)(min(Lo.z, 1.0f) * 255);
+    return RGB(r, g, b);
+}
+
 void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
     Vec3 viewDir = { 0.0f, 0.0f, -1.0f };
 
@@ -136,29 +226,24 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
 
         // 조명 방향
         Vec3 lightDir = normalize({ -light.direction.x, -light.direction.y, -light.direction.z });
+        Vec3 viewDirV = { 0.0f, 0.0f, 1.0f };
 
-        // 버텍스별 조명 강도
-        float i0 = max(0.0f, dot(n0, lightDir));
-        float i1 = max(0.0f, dot(n1, lightDir));
-        float i2 = max(0.0f, dot(n2, lightDir));
+        // PBR 파라미터 (텍스처 없으니 상수)
+        float metallic = 0.0f;
+        float roughness = 0.5f;
 
-        // ambient + diffuse
-        float a = 0.3f;  // ambient
-        i0 = a + (1.0f - a) * i0;
-        i1 = a + (1.0f - a) * i1;
-        i2 = a + (1.0f - a) * i2;
-
-        // 조명 적용한 색상
-        auto applyLight = [](COLORREF c, float intensity) -> COLORREF {
-            int r = (int)(GetRValue(c) * intensity);
-            int g = (int)(GetGValue(c) * intensity);
-            int b = (int)(GetBValue(c) * intensity);
-            return RGB(min(r, 255), min(g, 255), min(b, 255));
+        // 버텍스별 PBR 색상 계산
+        auto toPBRAlbedo = [](COLORREF c) -> Vec3 {
+            return {
+                GetRValue(c) / 255.0f,
+                GetGValue(c) / 255.0f,
+                GetBValue(c) / 255.0f
+            };
             };
 
-        c0 = applyLight(c0, i0);
-        c1 = applyLight(c1, i1);
-        c2 = applyLight(c2, i2);
+        c0 = calcPBR(toPBRAlbedo(c0), n0, lightDir, viewDirV, metallic, roughness);
+        c1 = calcPBR(toPBRAlbedo(c1), n1, lightDir, viewDirV, metallic, roughness);
+        c2 = calcPBR(toPBRAlbedo(c2), n2, lightDir, viewDirV, metallic, roughness);
         // 광원 공간 버텍스 계산
         ScreenVert lv[3];
         lv[0] = projectVertex(v[0], lightMVP);
@@ -284,7 +369,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     wc.lpszClassName = L"SoftwareRenderer";
     RegisterClass(&wc);
 
-    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day117",
+    g_hwnd = CreateWindow(L"SoftwareRenderer", L"Software Renderer - Day20",
         WS_OVERLAPPEDWINDOW, 100, 100, WIDTH, HEIGHT,
         NULL, NULL, hInstance, NULL);
 
@@ -325,7 +410,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             frameCount = 0;
             lastTime = now;
             wchar_t title[64];
-            swprintf_s(title, L"Software Renderer - Day17 | FPS: %.1f", fps);
+            swprintf_s(title, L"Software Renderer - Day20 | FPS: %.1f", fps);
             SetWindowText(g_hwnd, title);
         }
     }

@@ -5,7 +5,8 @@ using namespace std;
 
 class Light {
 public:
-    Vec3 direction = { 1.0f, 1.0f, -1.0f };
+
+    Vec3 direction = { 0.0f, -1.0f, -1.0f };
 
     float getIntensity(Vec3 normal) const {
         float i = dot(normalize(direction), normal);
