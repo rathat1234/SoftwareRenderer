@@ -9,8 +9,8 @@ using namespace std;
 
 class Light {
 public:
-    // 광원 방향 벡터 (정면 + 위에서 비춤)
-    Vec3 direction = { 0.0f, -1.0f, -1.0f };
+    // 광원 방향 벡터 ( 위 오른쪽 앞에서 비춤 )
+    Vec3 direction = { 0.5f, -1.0f, -0.5f };
 
     // 법선 벡터와 광원 방향의 내적으로 조명 강도 계산 (Lambertian)
     float getIntensity(Vec3 normal) const {

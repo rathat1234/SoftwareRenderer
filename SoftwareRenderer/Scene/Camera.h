@@ -7,7 +7,7 @@
 
 class Camera {
 public:
-    float posZ = -5.0f;  // 카메라 Z 위치 (음수 = 화면 뒤로)
+    float posZ = -15.0f;  // 카메라 Z 위치 (음수 = 화면 뒤로)
     float rotX = 0.0f;   // X축 회전각 (마우스 상하)
     float rotY = 0.0f;   // Y축 회전각 (마우스 좌우)
 

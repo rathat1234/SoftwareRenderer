@@ -138,7 +138,7 @@ float GeometrySmith(float NdotV, float NdotL, float roughness) {
 COLORREF calcPBR(Vec3 albedo, Vec3 N, Vec3 L, Vec3 V, float metallic, float roughness) {
     Vec3 H = normalize({ L.x + V.x, L.y + V.y, L.z + V.z });  // Half Vector
 
-    float NdotL = max(0.2f, dot(N, L));  // 최소 ambient 보장
+    float NdotL = max(0.5f, dot(N, L));  // 최소 ambient 보장
     float NdotV = max(0.0f, dot(N, V));
     float NdotH = max(0.0f, dot(N, H));
     float HdotV = max(0.0f, dot(H, V));
@@ -177,7 +177,7 @@ COLORREF calcPBR(Vec3 albedo, Vec3 N, Vec3 L, Vec3 V, float metallic, float roug
 
     Vec3 ambient = { albedo.x * 0.3f, albedo.y * 0.3f, albedo.z * 0.3f };
 
-    float lightIntensity = 5.0f;
+    float lightIntensity = 8.0f;
     Vec3 Lo = {
         (diffuse.x + specular.x) * NdotL * lightIntensity + ambient.x,
         (diffuse.y + specular.y) * NdotL * lightIntensity + ambient.y,
@@ -225,14 +225,14 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
         if (sv[0].sy > HEIGHT && sv[1].sy > HEIGHT && sv[2].sy > HEIGHT) continue;
 
         // UV 좌표 계산 (버텍스 위치 기반 간이 UV)
-        float u0 = (v[0].x + 1.0f) * 0.5f, vo0 = (v[0].y + 1.0f) * 0.5f;
+        float u0 = (v[0].x + 3.0f) * 6.0f, vo0 = (v[0].y + 3.5f) * 6.0f;
         float u1 = (v[1].x + 1.0f) * 0.5f, vo1 = (v[1].y + 1.0f) * 0.5f;
         float u2 = (v[2].x + 1.0f) * 0.5f, vo2 = (v[2].y + 1.0f) * 0.5f;
 
         // 텍스처 샘플링
-        COLORREF c0 = sampleTexture(texture, u0, vo0);
-        COLORREF c1 = sampleTexture(texture, u1, vo1);
-        COLORREF c2 = sampleTexture(texture, u2, vo2);
+        COLORREF c0 = RGB( 180, 180, 180 );
+        COLORREF c1 = RGB( 180, 180, 180 );
+        COLORREF c2 = RGB( 180, 180, 180 );
 
         // Normal Map 샘플링 (없으면 기본 법선 (0,0,1) 사용)
         Vec3 n0 = sampleNormalMap(normalMap, u0, vo0);
@@ -243,7 +243,7 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
         Vec3 lightDir = normalize({ -light.direction.x, -light.direction.y, -light.direction.z });
         Vec3 viewDirV = { 0.0f, 0.0f, 1.0f };
         float metallic = 0.0f;
-        float roughness = 0.5f;
+        float roughness = 0.8f;
 
         auto toPBRAlbedo = [](COLORREF c) -> Vec3 {
             return {

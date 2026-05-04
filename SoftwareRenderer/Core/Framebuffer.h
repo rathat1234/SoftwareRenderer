@@ -34,7 +34,7 @@ public:
 
     // 프레임 시작 시 픽셀 버퍼와 깊이 버퍼 초기화
     void clear() {
-        memset(pixels, 0, WIDTH * HEIGHT * sizeof(COLORREF));
+        std::fill(pixels, pixels + WIDTH * HEIGHT, (COLORREF)RGB(30, 30, 40));
         std::fill(&depth[0][0], &depth[0][0] + WIDTH * HEIGHT, 1e9f);
     }
 
