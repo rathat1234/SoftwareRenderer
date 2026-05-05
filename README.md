@@ -69,6 +69,6 @@ OBJ 로드 (머티리얼 파싱) → MVP 변환 → Back-face / Frustum Culling
 
 | 에셋 | 출처 | 라이선스 |
 |------|------|------|
-| Sofa OBJ | Amir Hussein Gholizade | [CC Attribution](https://sketchfab.com/3d-models/sofa-obj-10583d1e081345fa95536ad71e6f4871) |
-| Case with money | tasha.kosaykina | [CC Attribution](https://sketchfab.com/3d-models/case-with-money-low-poly-b6ae7582e0bb45bc950b0ea177ae8eed) |
-| Easter Eggs | [Render at Night - Sketchfab](https://sketchfab.com/3d-models/easter-eggs-ac0b0892e538449da59f2f9beb66f855) | CC Attribution |
+| [Sofa OBJ](https://sketchfab.com/3d-models/sofa-obj-10583d1e081345fa95536ad71e6f4871) | Amir Hussein Gholizade | CC Attribution |
+| [Case with money](https://sketchfab.com/3d-models/case-with-money-low-poly-b6ae7582e0bb45bc950b0ea177ae8eed) | tasha.kosaykina | CC Attribution |
+| [Easter Eggs](https://sketchfab.com/3d-models/easter-eggs-ac0b0892e538449da59f2f9beb66f855) | Render at Night - Sketchfab | CC Attribution |
