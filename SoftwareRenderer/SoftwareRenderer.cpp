@@ -1,4 +1,6 @@
-﻿#include <windows.h>
+﻿#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#include <windows.h>
 #include "Math/Vec3.h"
 #include "Math/Mat4.h"
 #include "Core/Framebuffer.h"
@@ -9,6 +11,7 @@
 #include "Scene/ECS.h"
 #include <immintrin.h>  // AVX2
 #include <emmintrin.h>  // SSE2
+#include <stdio.h>
 #include <thread>
 #include <vector>
 
@@ -35,8 +38,8 @@ struct Texture {
     vector<COLORREF> pixels;
 };
 
-Texture texture;    // 컬러 텍스처
-Texture normalMap;  // Normal Map 텍스처
+Texture textures[4];    // 컬러 텍스처
+Texture normalMap;      // Normal Map 텍스처
 
 // FPS 카운터
 int   frameCount = 0;
@@ -76,6 +79,28 @@ Texture loadBMP(const char* path) {
         fseek(f, padding, SEEK_CUR);
     }
     fclose(f);
+    return tex;
+}
+
+Texture loadPNG(const char* path) {
+    Texture tex;
+    tex.width = 0; tex.height = 0;
+
+    int w, h, channels;
+    unsigned char* data = stbi_load(path, &w, &h, &channels, 3);  // 3 = RGB
+
+    tex.width = w;
+    tex.height = h;
+    tex.pixels.resize(w * h);
+
+    for (int i = 0; i < w * h; i++) {
+        BYTE r = data[i * 3 + 0];
+        BYTE g = data[i * 3 + 1];
+        BYTE b = data[i * 3 + 2];
+        tex.pixels[i] = RGB(r, g, b);
+    }
+
+    stbi_image_free(data);
     return tex;
 }
 
@@ -241,10 +266,12 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
         }
 
 
-        // 텍스처 샘플링
-        COLORREF c0 = sampleTexture(texture, u0, vo0);
-        COLORREF c1 = sampleTexture(texture, u1, vo1);
-        COLORREF c2 = sampleTexture(texture, u2, vo2);
+        int matIdx = mesh.matIndices[i / 3];
+        Texture& tex = textures[matIdx];
+
+        COLORREF c0 = sampleTexture(tex, u0, vo0);
+        COLORREF c1 = sampleTexture(tex, u1, vo1);
+        COLORREF c2 = sampleTexture(tex, u2, vo2);
 
         // Normal Map 샘플링 (없으면 기본 법선 (0,0,1) 사용)
         Vec3 n0 = sampleNormalMap(normalMap, u0, vo0);
@@ -265,9 +292,9 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
             };
             };
 
-        c0 = calcPBR(toPBRAlbedo(c0), n0, lightDir, viewDirV, metallic, roughness);
-        c1 = calcPBR(toPBRAlbedo(c1), n1, lightDir, viewDirV, metallic, roughness);
-        c2 = calcPBR(toPBRAlbedo(c2), n2, lightDir, viewDirV, metallic, roughness);
+        //c0 = calcPBR(toPBRAlbedo(c0), n0, lightDir, viewDirV, metallic, roughness);
+        //c1 = calcPBR(toPBRAlbedo(c1), n1, lightDir, viewDirV, metallic, roughness);
+        //c2 = calcPBR(toPBRAlbedo(c2), n2, lightDir, viewDirV, metallic, roughness);
 
         // Shadow Map용 광원 공간 버텍스
         ScreenVert lv[3];
@@ -318,23 +345,23 @@ void render() {
     Mat4 lightMVP = lightProj * lightView * model;
 
     // 1패스: 광원 시점으로 Shadow Map 생성
-    fb.clearShadowMap();
-    for (int i = 0; i + 2 < (int)mesh.indices.size(); i += 3) {
-        Vec3 v[3];
-        v[0] = mesh.vertices[mesh.indices[i]];
-        v[1] = mesh.vertices[mesh.indices[i + 1]];
-        v[2] = mesh.vertices[mesh.indices[i + 2]];
+    //fb.clearShadowMap();
+    //for (int i = 0; i + 2 < (int)mesh.indices.size(); i += 3) {
+    //    Vec3 v[3];
+    //    v[0] = mesh.vertices[mesh.indices[i]];
+    //    v[1] = mesh.vertices[mesh.indices[i + 1]];
+    //    v[2] = mesh.vertices[mesh.indices[i + 2]];
 
-        ScreenVert sv[3];
-        sv[0] = projectVertex(v[0], lightMVP);
-        sv[1] = projectVertex(v[1], lightMVP);
-        sv[2] = projectVertex(v[2], lightMVP);
+    //    ScreenVert sv[3];
+    //    sv[0] = projectVertex(v[0], lightMVP);
+    //    sv[1] = projectVertex(v[1], lightMVP);
+    //    sv[2] = projectVertex(v[2], lightMVP);
 
-        drawTriangleShadow(fb,
-            sv[0].sx, sv[0].sy, sv[0].depth,
-            sv[1].sx, sv[1].sy, sv[1].depth,
-            sv[2].sx, sv[2].sy, sv[2].depth);
-    }
+    //    drawTriangleShadow(fb,
+    //        sv[0].sx, sv[0].sy, sv[0].depth,
+    //        sv[1].sx, sv[1].sy, sv[1].depth,
+    //        sv[2].sx, sv[2].sy, sv[2].depth);
+    //}
 
     // 2패스: 카메라 시점으로 멀티스레드 래스터라이제이션
     const int NUM_THREADS = 8;
@@ -401,8 +428,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     fb.init(g_hwnd);
 
     // 리소스 로드
-    mesh.loadOBJ("Sofa_OBJ.obj");
-    texture = loadBMP("texture.bmp");
+    textures[0] = loadPNG("../assets/EGG_TEX_4.png");
+    textures[1] = loadPNG("../assets/EGG_TEX_3.png");
+    textures[2] = loadPNG("../assets/EGG_TEX_1.png");
+    textures[3] = loadPNG("../assets/EGG_TEX_2.png");
+    mesh.loadOBJ("../assets/Easter_Eggs_High_Poly.obj");
     normalMap = loadBMP("normal_map.bmp");
 
     // ECS 엔티티 생성
@@ -432,6 +462,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 
         // FPS 측정 및 타이틀 업데이트
         frameCount++;
+
+
         DWORD now = GetTickCount();
         if (now - lastTime >= 1000) {
             fps = frameCount * 1000.0f / (now - lastTime);
