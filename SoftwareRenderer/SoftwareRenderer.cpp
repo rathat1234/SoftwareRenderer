@@ -109,8 +109,8 @@ Vec3 sampleNormalMap(const Texture& tex, float u, float v) {
 
 // GGX 법선 분포 함수: 표면 미세면의 방향 분포
 float DistributionGGX(float NdotH, float roughness) {
-    float a = roughness * roughness;
-    float a2 = a * a;
+    float a     = roughness * roughness;
+    float a2    = a * a;
     float denom = (NdotH * NdotH) * (a2 - 1.0f) + 1.0f;
     return a2 / (3.14159f * denom * denom);
 }
@@ -127,10 +127,10 @@ Vec3 FresnelSchlick(float cosTheta, Vec3 F0) {
 
 // Smith Geometry Function: 미세면이 서로 가리는 효과
 float GeometrySmith(float NdotV, float NdotL, float roughness) {
-    float r = roughness + 1.0f;
-    float k = (r * r) / 8.0f;
-    float ggx1 = NdotV / (NdotV * (1.0f - k) + k);
-    float ggx2 = NdotL / (NdotL * (1.0f - k) + k);
+    float r     = roughness + 1.0f;
+    float k     = (r * r) / 8.0f;
+    float ggx1  = NdotV / (NdotV * (1.0f - k) + k);
+    float ggx2  = NdotL / (NdotL * (1.0f - k) + k);
     return ggx1 * ggx2;
 }
 
@@ -211,7 +211,7 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
         Vec3 edge1 = subtract(v[1], v[0]);
         Vec3 edge2 = subtract(v[2], v[0]);
         Vec3 normal = normalize(cross(edge1, edge2));
-        if (dot(normal, viewDir) >= 0) continue;
+        //if (dot(normal, viewDir) >= 0) continue; // 모델링 
 
         ScreenVert sv[3];
         sv[0] = projectVertex(v[0], mvp);
@@ -224,15 +224,27 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
         if (sv[0].sy < 0 && sv[1].sy < 0 && sv[2].sy < 0) continue;
         if (sv[0].sy > HEIGHT && sv[1].sy > HEIGHT && sv[2].sy > HEIGHT) continue;
 
-        // UV 좌표 계산 (버텍스 위치 기반 간이 UV)
-        float u0 = (v[0].x + 3.0f) * 6.0f, vo0 = (v[0].y + 3.5f) * 6.0f;
-        float u1 = (v[1].x + 1.0f) * 0.5f, vo1 = (v[1].y + 1.0f) * 0.5f;
-        float u2 = (v[2].x + 1.0f) * 0.5f, vo2 = (v[2].y + 1.0f) * 0.5f;
+        // UV 인덱스로 실제 UV 좌표 가져오기
+        float u0, vo0, u1, vo1, u2, vo2;
+        if (!mesh.uvIndices.empty() && i + 2 < (int)mesh.uvIndices.size()) {
+            u0 = mesh.uvs[mesh.uvIndices[i]].u;
+            vo0 = 1.0f - mesh.uvs[mesh.uvIndices[i]].v;      // V 뒤집기
+            u1 = mesh.uvs[mesh.uvIndices[i + 1]].u;
+            vo1 = 1.0f - mesh.uvs[mesh.uvIndices[i + 1]].v;
+            u2 = mesh.uvs[mesh.uvIndices[i + 2]].u;
+            vo2 = 1.0f - mesh.uvs[mesh.uvIndices[i + 2]].v;
+        }
+        else {
+            u0 = (v[0].x + 1.0f) * 0.5f; vo0 = (v[0].y + 1.0f) * 0.5f;
+            u1 = (v[1].x + 1.0f) * 0.5f; vo1 = (v[1].y + 1.0f) * 0.5f;
+            u2 = (v[2].x + 1.0f) * 0.5f; vo2 = (v[2].y + 1.0f) * 0.5f;
+        }
+
 
         // 텍스처 샘플링
-        COLORREF c0 = RGB( 180, 180, 180 );
-        COLORREF c1 = RGB( 180, 180, 180 );
-        COLORREF c2 = RGB( 180, 180, 180 );
+        COLORREF c0 = sampleTexture(texture, u0, vo0);
+        COLORREF c1 = sampleTexture(texture, u1, vo1);
+        COLORREF c2 = sampleTexture(texture, u2, vo2);
 
         // Normal Map 샘플링 (없으면 기본 법선 (0,0,1) 사용)
         Vec3 n0 = sampleNormalMap(normalMap, u0, vo0);
@@ -389,7 +401,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     fb.init(g_hwnd);
 
     // 리소스 로드
-    mesh.loadOBJ("airboat.obj");
+    mesh.loadOBJ("Sofa_OBJ.obj");
     texture = loadBMP("texture.bmp");
     normalMap = loadBMP("normal_map.bmp");
 
