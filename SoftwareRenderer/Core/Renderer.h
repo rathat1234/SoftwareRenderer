@@ -85,10 +85,10 @@ inline void drawTriangleShadow(Framebuffer& fb,
         }
     }
 }
-// Gouraud Shading + SIMD 최적화 + Shadow Map 적용 래스터라이제이션
+// Gouraud Shading + SIMD 최적화 래스터라이제이션
 // - SSE2로 x축 4픽셀 병렬 처리
 // - startY/endY로 멀티스레드 타일 분할
-// - 광원 공간 좌표(lx,ly,lz)로 Shadow Map 비교
+// - Shadow Map 비교 코드 포함 (Shadow Map 비활성화 시 무영향)
 inline void drawTriangleGouraud(Framebuffer& fb,
     float x0, float y0, float z0, COLORREF c0,
     float x1, float y1, float z1, COLORREF c1,

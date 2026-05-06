@@ -224,7 +224,7 @@ COLORREF calcPBR(Vec3 albedo, Vec3 N, Vec3 L, Vec3 V, float metallic, float roug
 // 멀티스레드 렌더링: 각 스레드가 startY~endY 구간만 처리
 // ============================================================
 void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
-    Vec3 viewDir = { 0.0f, 0.0f, -1.0f };
+    // Vec3 viewDir = { 0.0f, 0.0f, -1.0f };
 
     for (int i = 0; i + 2 < (int)mesh.indices.size(); i += 3) {
         Vec3 v[3];
@@ -273,24 +273,24 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
         COLORREF c1 = sampleTexture(tex, u1, vo1);
         COLORREF c2 = sampleTexture(tex, u2, vo2);
 
-        // Normal Map 샘플링 (없으면 기본 법선 (0,0,1) 사용)
+        // 페이스 노멀 기반 람버트 조명용 법선
         Vec3 n0 = normal;
         Vec3 n1 = normal;
         Vec3 n2 = normal;
 
-        // PBR 조명 계산
+        // 람버트 조명 계산
         Vec3 lightDir = normalize({ -light.direction.x, -light.direction.y, -light.direction.z });
-        Vec3 viewDirV = { 0.0f, 0.0f, 1.0f };
-        float metallic = 0.0f;
-        float roughness = 0.8f;
+        //Vec3 viewDirV = { 0.0f, 0.0f, 1.0f };
+        //float metallic = 0.0f;
+        //float roughness = 0.8f;
 
-        auto toPBRAlbedo = [](COLORREF c) -> Vec3 {
-            return {
-                GetRValue(c) / 255.0f,
-                GetGValue(c) / 255.0f,
-                GetBValue(c) / 255.0f
-            };
-            };
+        //auto toPBRAlbedo = [](COLORREF c) -> Vec3 {
+        //    return {
+        //        GetRValue(c) / 255.0f,
+        //        GetGValue(c) / 255.0f,
+        //        GetBValue(c) / 255.0f
+        //    };
+        //    };
 
         //c0 = calcPBR(toPBRAlbedo(c0), n0, lightDir, viewDirV, metallic, roughness);
         //c1 = calcPBR(toPBRAlbedo(c1), n1, lightDir, viewDirV, metallic, roughness);
@@ -326,7 +326,7 @@ void renderChunk(int startY, int endY, const Mat4& mvp, const Mat4& lightMVP) {
 }
 
 // ============================================================
-// 메인 렌더 루프: MVP 계산 -> Shadow Map -> 멀티스레드 래스터라이제이션
+// 메인 렌더 루프: MVP 계산 -> 멀티스레드 래스터라이제이션
 // ============================================================
 void render() {
     fb.clear();
@@ -376,7 +376,7 @@ void render() {
     //}
 
     // 2패스: 카메라 시점으로 멀티스레드 래스터라이제이션
-    const int NUM_THREADS = 8;
+    const int NUM_THREADS = 16;
     int chunkH = HEIGHT / NUM_THREADS;
     std::vector<std::thread> threads;
     for (int t = 0; t < NUM_THREADS; t++) {
@@ -482,7 +482,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             frameCount = 0;
             lastTime = now;
             wchar_t title[64];
-            swprintf_s(title, L"Software Renderer - Day20 | FPS: %.1f", fps);
+            swprintf_s(title, L"Software Renderer - Day22 | FPS: %.1f", fps);
             SetWindowText(g_hwnd, title);
         }
     }

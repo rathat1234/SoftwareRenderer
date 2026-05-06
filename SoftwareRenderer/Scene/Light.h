@@ -18,7 +18,7 @@ public:
         return max(0.1f, i);  // 최소 ambient 0.1 보장
     }
 
-    // 조명 강도를 색상에 적용 (현재는 PBR로 대체, 레거시 유지)
+    // 조명 강도를 색상에 적용 (현재는 람버트로 대체, 레거시 유지)
     COLORREF applyLight(COLORREF baseColor, float intensity) const {
         intensity = max(0.1f, min(1.0f, intensity));
         int r = (int)(GetRValue(baseColor) * intensity);
