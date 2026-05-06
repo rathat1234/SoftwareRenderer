@@ -1,9 +1,13 @@
 ﻿# Software Rasterizer
 
 > C++ / Windows API로 구현한 소프트웨어 래스터라이저
-| Back-face Culling | 멀티 텍스처 매핑 |
+
+| Back-face Culling | |
 |---|---|
-| ![culling_1](assets/SoftwareRenderer_1.gif)  | [culling_2](assets/SoftwareRenderer_2.gif) |
+| ![culling_1](assets/SoftwareRenderer_1.gif) | ![culling_2](assets/SoftwareRenderer_2.gif) |
+
+| 멀티 텍스처 매핑 |
+|---|
 | ![texture](assets/SoftwareRenderer_3.gif) |
 
 
