@@ -62,14 +62,14 @@ OBJ 로드 (머티리얼 파싱) → MVP 변환 → Back-face / Frustum Culling
 
 ## 빌드 환경
 
-- Visual Studio 2022
+- Visual Studio 2026
 - C++17
 - Windows API (Win32)
 - AVX2 / SSE2 SIMD
 
 ## 빌드 방법
 
-1. `SoftwareRenderer.sln` 열기
+1. `SoftwareRenderer.slnx` 열기
 2. 구성: `Release / x64`
 3. 빌드 실행
 
